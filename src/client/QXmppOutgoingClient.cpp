@@ -200,7 +200,6 @@ QXmppOutgoingClient::QXmppOutgoingClient(QObject *parent)
     // initialise socket
     QSslSocket *socket = new QSslSocket(this);
     setSocket(socket);
-
     connectSignals(socket);
 
     // DNS lookups
@@ -362,11 +361,12 @@ void QXmppOutgoingClient::disconnectSignals(QSslSocket *socket) {
 void QXmppOutgoingClient::connectToHost()
 {
     disconnectSignals(socket());
+//    socket()->close();
 
-    QSslSocket *socket = new QSslSocket(this);
-    setSocket(socket);
+    QSslSocket *newSocket = new QSslSocket(this);
+    setSocket(newSocket);
 
-    connectSignals(socket);
+    connectSignals(newSocket);
 
 //    QNetworkConfigurationManager *networkManager = new QNetworkConfigurationManager(this);
 //    foreach (QNetworkConfiguration networkConfig, networkManager->allConfigurations()) {
