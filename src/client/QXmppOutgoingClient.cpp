@@ -57,6 +57,8 @@
 #include <QHostAddress>
 #include <QXmlStreamWriter>
 #include <QTimer>
+#include <QNetworkConfiguration>
+#include <QNetworkConfigurationManager>
 
 class QXmppOutgoingClientPrivate
 {
@@ -96,6 +98,13 @@ public:
     QTimer *pingTimer;
     QTimer *timeoutTimer;
 
+    void isReadyToRead();
+    void isBytesWritten();
+    void isAboutToClose();
+    void isReadChannelFinished();
+    void isHostFound();
+    void isStateChanged(QAbstractSocket::SocketState state);
+    void isPeerVerifyError(const QSslError &error);
 private:
     QXmppOutgoingClient *q;
 };
@@ -141,6 +150,42 @@ void QXmppOutgoingClientPrivate::connectToHost(const QString &host, quint16 port
     }
 }
 
+void QXmppOutgoingClientPrivate::isReadyToRead()
+{
+    q->info("------ Socket is ready to read ------");
+}
+
+void QXmppOutgoingClientPrivate::isBytesWritten()
+{
+    q->info("------ Socket has bytes written ------");
+}
+
+void QXmppOutgoingClientPrivate::isAboutToClose()
+{
+    q->info("------ Socket is about to close ------");
+}
+
+void QXmppOutgoingClientPrivate::isReadChannelFinished()
+{
+    q->info("------ Socket has read channel finished ------");
+}
+
+void QXmppOutgoingClientPrivate::isHostFound()
+{
+    q->info("------ Socket has found host ------");
+}
+
+void QXmppOutgoingClientPrivate::isStateChanged(QAbstractSocket::SocketState state)
+{
+    Q_UNUSED(state);
+    q->info(QString("------ Socket state changed: %1 ------").arg(q->socket()->state()));
+}
+
+void QXmppOutgoingClientPrivate::isPeerVerifyError(const QSslError &error)
+{
+    q->info(QString("------ Socket has peer verify error: %1 ------").arg(error.errorString()));
+}
+
 /// Constructs an outgoing client stream.
 ///
 /// \param parent
@@ -156,17 +201,7 @@ QXmppOutgoingClient::QXmppOutgoingClient(QObject *parent)
     QSslSocket *socket = new QSslSocket(this);
     setSocket(socket);
 
-    check = connect(socket, SIGNAL(disconnected()),
-                    this, SLOT(_q_socketDisconnected()));
-    Q_ASSERT(check);
-
-    check = connect(socket, SIGNAL(sslErrors(QList<QSslError>)),
-                    this, SLOT(socketSslErrors(QList<QSslError>)));
-    Q_ASSERT(check);
-
-    check = connect(socket, SIGNAL(error(QAbstractSocket::SocketError)),
-                    this, SLOT(socketError(QAbstractSocket::SocketError)));
-    Q_ASSERT(check);
+    connectSignals(socket);
 
     // DNS lookups
     check = connect(&d->dns, SIGNAL(finished()),
@@ -194,6 +229,43 @@ QXmppOutgoingClient::QXmppOutgoingClient(QObject *parent)
     Q_ASSERT(check);
 }
 
+void QXmppOutgoingClient::isReadyToRead()
+{
+    d->isReadyToRead();
+}
+
+void QXmppOutgoingClient::isBytesWritten(qint64 data)
+{
+    Q_UNUSED(data);
+    d->isBytesWritten();
+}
+
+void QXmppOutgoingClient::isAboutToClose()
+{
+    d->isAboutToClose();
+}
+
+void QXmppOutgoingClient::isReadChannelFinished()
+{
+    d->isReadChannelFinished();
+}
+
+void QXmppOutgoingClient::isHostFound()
+{
+    d->isHostFound();
+}
+
+void QXmppOutgoingClient::isStateChanged(QAbstractSocket::SocketState state)
+{
+    d->isStateChanged(state);
+}
+
+void QXmppOutgoingClient::isPeerVerifyError(const QSslError &error)
+{
+    d->isPeerVerifyError(error);
+}
+
+
 /// Destroys an outgoing client stream.
 
 QXmppOutgoingClient::~QXmppOutgoingClient()
@@ -210,17 +282,111 @@ QXmppConfiguration& QXmppOutgoingClient::configuration()
 
 /// Attempts to connect to the XMPP server.
 
+void QXmppOutgoingClient::connectSignals(QSslSocket *socket) {
+    bool check;
+    Q_UNUSED(check);
+
+    check = connect(socket, SIGNAL(disconnected()),
+                    this, SLOT(_q_socketDisconnected()));
+    Q_ASSERT(check);
+
+    check = connect(socket, SIGNAL(sslErrors(QList<QSslError>)),
+                    this, SLOT(socketSslErrors(QList<QSslError>)));
+    Q_ASSERT(check);
+
+    check = connect(socket, SIGNAL(error(QAbstractSocket::SocketError)),
+                    this, SLOT(socketError(QAbstractSocket::SocketError)));
+    Q_ASSERT(check);
+
+    check = connect(socket, SIGNAL(readyRead()),
+                    this, SLOT(isReadyToRead()));
+    Q_ASSERT(check);
+
+    check = connect(socket, SIGNAL(bytesWritten(qint64)),
+                    this, SLOT(isBytesWritten(qint64)));
+    Q_ASSERT(check);
+
+    check = connect(socket, SIGNAL(aboutToClose()),
+                    this, SLOT(isAboutToClose()));
+    Q_ASSERT(check);
+
+    check = connect(socket, SIGNAL(readChannelFinished()),
+                    this, SLOT(isReadChannelFinished()));
+    Q_ASSERT(check);
+
+    check = connect(socket, SIGNAL(hostFound()),
+                    this, SLOT(isHostFound()));
+    Q_ASSERT(check);
+
+    check = connect(socket, SIGNAL(stateChanged(QAbstractSocket::SocketState)),
+                    this, SLOT(isStateChanged(QAbstractSocket::SocketState)));
+    Q_ASSERT(check);
+
+    check = connect(socket, SIGNAL(peerVerifyError(QSslError)),
+                    this, SLOT(isPeerVerifyError(QSslError)));
+    Q_ASSERT(check);
+}
+
+void QXmppOutgoingClient::disconnectSignals(QSslSocket *socket) {
+    disconnect(socket, SIGNAL(disconnected()),
+                    this, SLOT(_q_socketDisconnected()));
+
+    disconnect(socket, SIGNAL(sslErrors(QList<QSslError>)),
+                    this, SLOT(socketSslErrors(QList<QSslError>)));
+
+    disconnect(socket, SIGNAL(error(QAbstractSocket::SocketError)),
+                    this, SLOT(socketError(QAbstractSocket::SocketError)));
+
+    disconnect(socket, SIGNAL(readyRead()),
+                    this, SLOT(isReadyToRead()));
+
+    disconnect(socket, SIGNAL(bytesWritten(qint64)),
+                    this, SLOT(isBytesWritten(qint64)));
+
+    disconnect(socket, SIGNAL(aboutToClose()),
+                    this, SLOT(isAboutToClose()));
+
+    disconnect(socket, SIGNAL(readChannelFinished()),
+                    this, SLOT(isReadChannelFinished()));
+
+    disconnect(socket, SIGNAL(hostFound()),
+                    this, SLOT(isHostFound()));
+
+    disconnect(socket, SIGNAL(stateChanged(QAbstractSocket::SocketState)),
+                    this, SLOT(isStateChanged(QAbstractSocket::SocketState)));
+
+    disconnect(socket, SIGNAL(peerVerifyError(QSslError)),
+                    this, SLOT(isPeerVerifyError(QSslError)));
+}
+
 void QXmppOutgoingClient::connectToHost()
 {
+    disconnectSignals(socket());
+
+    QSslSocket *socket = new QSslSocket(this);
+    setSocket(socket);
+
+    connectSignals(socket);
+
+//    QNetworkConfigurationManager *networkManager = new QNetworkConfigurationManager(this);
+//    foreach (QNetworkConfiguration networkConfig, networkManager->allConfigurations()) {
+//        info(QString("\n------ Network config name : %1 ------").arg(networkConfig.name()));
+//        info(QString("------ isValid : %1 ------").arg(networkConfig.isValid()));
+//        info(QString("------ bearerTypeName : %1 ------").arg(networkConfig.bearerTypeName()));
+//        info(QString("------ state : %1 -----\n").arg(networkConfig.state()));
+//    }
+
+//    info("------ Socket renewed ------");
     // if an explicit host was provided, connect to it
     if (!d->config.host().isEmpty() && d->config.port()) {
+        info(QString("Looking up server for domain %1").arg(d->config.host()));
         d->connectToHost(d->config.host(), d->config.port());
         return;
     }
 
     // otherwise, lookup server
     const QString domain = configuration().domain();
-    debug(QString("Looking up server for domain %1").arg(domain));
+    info(QString("Looking up server for domain %1").arg(domain));
     d->dns.setName("_xmpp-client._tcp." + domain);
     d->dns.setType(QDnsLookup::SRV);
     d->dns.lookup();
@@ -231,12 +397,14 @@ void QXmppOutgoingClient::_q_dnsLookupFinished()
     if (d->dns.error() == QDnsLookup::NoError &&
         !d->dns.serviceRecords().isEmpty()) {
         // take the first returned record
+        info(QString("Lookup for domain %1 succeeded")
+                .arg(d->dns.name()));
         d->connectToHost(
             d->dns.serviceRecords().first().target(),
             d->dns.serviceRecords().first().port());
     } else {
         // as a fallback, use domain as the host name
-        warning(QString("Lookup for domain %1 failed: %2")
+        info(QString("Lookup for domain %1 failed: %2")
                 .arg(d->dns.name(), d->dns.errorString()));
         d->connectToHost(d->config.domain(), d->config.port());
     }
@@ -258,6 +426,7 @@ bool QXmppOutgoingClient::isConnected() const
 
 void QXmppOutgoingClient::_q_socketDisconnected()
 {
+    // why slot not triggered
     debug("Socket disconnected");
     d->isAuthenticated = false;
     if (!d->redirectHost.isEmpty() && d->redirectPort > 0) {
@@ -272,7 +441,7 @@ void QXmppOutgoingClient::_q_socketDisconnected()
 void QXmppOutgoingClient::socketSslErrors(const QList<QSslError> &errors)
 {
     // log errors
-    warning("SSL errors");
+    info("SSL errors");
     for(int i = 0; i< errors.count(); ++i)
         warning(errors.at(i).errorString());
 
@@ -481,6 +650,7 @@ void QXmppOutgoingClient::handleStanza(const QDomElement &nodeRecv)
         } else {
             // otherwise we are done
             d->sessionStarted = true;
+            info(QString("------ QXmppOutgoingClient connected : L484 -------"));
             emit connected();
         }
     }
@@ -575,6 +745,7 @@ void QXmppOutgoingClient::handleStanza(const QDomElement &nodeRecv)
                 session.parse(nodeRecv);
 
                 // xmpp connection made
+                info(QString("------ QXmppOutgoingClient connected : L579 -------"));
                 d->sessionStarted = true;
                 emit connected();
             }
@@ -610,6 +781,7 @@ void QXmppOutgoingClient::handleStanza(const QDomElement &nodeRecv)
                     } else {
                         // otherwise we are done
                         d->sessionStarted = true;
+                        info(QString("------ QXmppOutgoingClient connected : L613 -------"));
                         emit connected();
                     }
                 }
@@ -625,6 +797,7 @@ void QXmppOutgoingClient::handleStanza(const QDomElement &nodeRecv)
 
                 // xmpp connection made
                 d->sessionStarted = true;
+                info(QString("------ QXmppOutgoingClient connected : L629 -------"));
                 emit connected();
             }
             else if(QXmppNonSASLAuthIq::isNonSASLAuthIq(nodeRecv))
@@ -746,7 +919,7 @@ void QXmppOutgoingClient::pingSend()
 
 void QXmppOutgoingClient::pingTimeout()
 {
-    warning("Ping timeout");
+    info("Ping timeout");
     disconnectFromHost();
     emit error(QXmppClient::KeepAliveError);
 }

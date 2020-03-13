@@ -222,8 +222,10 @@ void QXmppIncomingServer::slotDialbackResponseReceived(const QXmppDialback &dial
         info(QString("Verified incoming domain '%1' on %2").arg(dialback.from(), d->origin()));
         const bool wasConnected = !d->authenticated.isEmpty();
         d->authenticated.insert(dialback.from());
-        if (!wasConnected)
+        if (!wasConnected) {
+            info(QString("------ QXmppIncomingServer connected : L226 -------"));
             emit connected();
+        }
     } else {
         warning(QString("Failed to verify incoming domain '%1' on %2").arg(dialback.from(), d->origin()));
         disconnectFromHost();

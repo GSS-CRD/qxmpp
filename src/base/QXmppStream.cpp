@@ -88,11 +88,19 @@ void QXmppStream::disconnectFromHost()
 {
     if (d->socket) {
         if (d->socket->state() == QAbstractSocket::ConnectedState) {
+            qDebug() << "-------  disconnectFromHost in ConnectedState, flush" << d->socket->state() << "  ------";
             sendData(streamRootElementEnd);
             d->socket->flush();
         }
+        if (d->socket->state() == QAbstractSocket::ConnectingState) {
+            qDebug() << "-------  disconnectFromHost in ConnectingState, flush" << d->socket->state() << "  ------";
+            sendData(streamRootElementEnd);
+            d->socket->flush();
+            d->socket->abort();
+        }
         // FIXME: according to RFC 6120 section 4.4, we should wait for
         // the incoming stream to end before closing the socket
+        qDebug() << "-------  disconnectFromHost normally  ------" << d->socket->state() << "  ------";
         d->socket->disconnectFromHost();
     }
 }
@@ -161,8 +169,10 @@ void QXmppStream::setSocket(QSslSocket *socket)
     Q_UNUSED(check);
 
     d->socket = socket;
-    if (!d->socket)
+    if (!d->socket) {
+        info(QString("------ empty socket when setSocket, return ------"));
         return;
+    }
 
     // socket events
     check = connect(socket, SIGNAL(connected()),

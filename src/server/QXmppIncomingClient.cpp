@@ -337,6 +337,7 @@ void QXmppIncomingClient::handleStanza(const QDomElement &nodeRecv)
                 sendPacket(bindResult);
 
                 // bound
+                info(QString("------ QXmppIncomingClient connected : L340 ------"));
                 emit connected();
                 return;
             }

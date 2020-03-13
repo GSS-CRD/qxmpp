@@ -244,6 +244,7 @@ void QXmppOutgoingServer::handleStanza(const QDomElement &stanza)
                 d->dataQueue.clear();
 
                 // emit signal
+                info(QString("------ QXmppOutgoingServer connected : L247 -------"));
                 emit connected();
             }
         }

@@ -61,6 +61,8 @@ public:
 
     QXmppConfiguration& configuration();
 
+    void connectSignals(QSslSocket *socket);
+    void disconnectSignals(QSslSocket *socket);
 signals:
     /// This signal is emitted when an error is encountered.
     void error(QXmppClient::Error);
@@ -99,6 +101,13 @@ private slots:
     void pingSend();
     void pingTimeout();
 
+    void isReadyToRead();
+    void isBytesWritten(qint64);
+    void isAboutToClose();
+    void isReadChannelFinished();
+    void isHostFound();
+    void isStateChanged(QAbstractSocket::SocketState);
+    void isPeerVerifyError(const QSslError &);
 private:
     void sendNonSASLAuth(bool plaintext);
     void sendNonSASLAuthQuery();
